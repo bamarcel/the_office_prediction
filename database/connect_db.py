@@ -1,13 +1,14 @@
-import psycopg as pg
+import sqlite3
 import datetime
+from pathlib import Path
 
-CONNECTION_STRING = "postgresql://postgres:root@localhost:5432/the_office"
+DATABASE_PATH = Path(__file__).parent.parent / "app_database.db"
 
 def connect_db():
     try:
-        conn = pg.connect(CONNECTION_STRING)
-        print("[" + str(datetime.datetime.now()) + "] — Connection to the database was successful.")
+        print("[" + str(datetime.datetime.now()) + "] — Connecting to the database...")
+        conn = sqlite3.connect(DATABASE_PATH)
         return conn
-    except Exception as e:
-        print(f"[" + str(datetime.datetime.now()) + "] — An error occurred while connecting to the database: {e}")
+    except sqlite3.Error as e:
+        print(f"[" + str(datetime.datetime.now()) + "] — Database connection error: {e}")
         return None
