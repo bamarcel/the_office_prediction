@@ -6,7 +6,6 @@ import datetime
 
 from database.connect_db import connect_db
 
-
 # Exécuteur de requêtes SQL
 def run_query(query, params=None, fetch="all"):
     conn = connect_db()
@@ -15,11 +14,14 @@ def run_query(query, params=None, fetch="all"):
         return None
 
     try:
-        with conn.cursor() as cur:
-            cur.execute(query, params or ())
-            if fetch == "one":
-                return cur.fetchone()
-            return cur.fetchall()
+        cur = conn.cursor()
+        
+        cur.execute(query, params or ())
+        
+        if fetch == "one":
+            return cur.fetchone()
+        return cur.fetchall()
+    
     except Exception as e:
         print(f"[" + str(datetime.datetime.now()) + "] — SQL Error: {e}")
         return None
@@ -47,23 +49,26 @@ def getStores():
 ### amount_sales : montant des ventes
 @st.cache_data(ttl=300)
 def getMonthData(store_id, month, year):
-    rows = run_query("""
+    print("Fetching month data for store_id:", store_id, "month:", month, "year:", year)
+    row = run_query("""
         SELECT
             COUNT(*) AS number_sales,
             SUM(total_amount) AS amount_sales
         FROM orders o
         JOIN sellers s ON o.seller_id = s.seller_id
-        WHERE s.store_id = %s
-          AND EXTRACT(YEAR FROM order_date) = %s
-          AND EXTRACT(MONTH FROM order_date) = %s
-    """, (store_id, year, month), fetch="one")
+        WHERE s.store_id = ?
+          AND strftime('%Y', o.order_date) = ?
+          AND strftime('%m', o.order_date) = ?
+    """, (int(store_id), str(year), f"{month:02d}"), fetch="one")
 
-    if not rows or rows[0] is None:
+    print("Query result:", row)
+
+    if not row:
         return {"number_sales": 0, "amount_sales": 0.0}
 
     return {
-        "number_sales": int(rows[0]),
-        "amount_sales": float(rows[1])
+        "number_sales": int(row[0]),
+        "amount_sales": float(row[1])
     }
 
 
@@ -74,24 +79,25 @@ def getMonthData(store_id, month, year):
 def getAllMonthsNumberAndAmount(store_id):
     rows = run_query("""
         SELECT
-            DATE_TRUNC('month', o.order_date) AS month,
+            strftime('%m-%Y', o.order_date) AS month,
             COUNT(*) AS number_sales,
             SUM(total_amount) AS amount_sales
         FROM orders o
         JOIN sellers s ON o.seller_id = s.seller_id
-        WHERE s.store_id = %s
+        WHERE s.store_id = ?
         GROUP BY month
         ORDER BY month ASC
-    """, (store_id,))
+    """, (int(store_id),))
 
     if not rows:
         return None
 
     df = pd.DataFrame([{
-        "date": r[0].strftime("%m/%Y"),
+        "date": r[0][5:7] + "/" + r[0][:4],     # Conversion to MM/YYYY format
         "number_sales": int(r[1]),
         "amount_sales": float(r[2])
     } for r in rows])
+
 
     return df
 
@@ -107,12 +113,12 @@ def getNumberOfProductsSold(store_id, month, year):
         JOIN orders o ON oi.order_id = o.order_id
         JOIN sellers s ON o.seller_id = s.seller_id
         JOIN products p ON oi.product_id = p.product_id
-        WHERE s.store_id = %s
-          AND EXTRACT(YEAR FROM o.order_date) = %s
-          AND EXTRACT(MONTH FROM o.order_date) = %s
+        WHERE s.store_id = ?
+          AND strftime('%Y', o.order_date) = ?
+          AND strftime('%m', o.order_date) = ?
         GROUP BY p.product_name
         ORDER BY total_quantity_sold DESC
-    """, (store_id, year, month))
+    """, (int(store_id), str(year), f"{month:02d}"))
 
     if not rows:
         return None
@@ -130,10 +136,10 @@ def getAverageBasketValue(store_id, month, year):
         SELECT AVG(o.total_amount)
         FROM orders o
         JOIN sellers s ON o.seller_id = s.seller_id
-        WHERE s.store_id = %s
-          AND EXTRACT(YEAR FROM o.order_date) = %s
-          AND EXTRACT(MONTH FROM o.order_date) = %s
-    """, (store_id, year, month), fetch="one")
+        WHERE s.store_id = ?
+            AND strftime('%Y', o.order_date) = ?
+            AND strftime('%m', o.order_date) = ?
+    """, (int(store_id), str(year), f"{month:02d}"), fetch="one")
 
     return float(row[0]) if row and row[0] else 0.0
 
