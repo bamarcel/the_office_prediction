@@ -79,23 +79,24 @@ def getMonthData(store_id, month, year):
 def getAllMonthsNumberAndAmount(store_id):
     rows = run_query("""
         SELECT
-            strftime('%m-%Y', o.order_date) AS month,
+            strftime('%m', o.order_date) AS month,
+            strftime('%Y', o.order_date) AS year,
             COUNT(*) AS number_sales,
             SUM(total_amount) AS amount_sales
         FROM orders o
         JOIN sellers s ON o.seller_id = s.seller_id
         WHERE s.store_id = ?
-        GROUP BY month
-        ORDER BY month ASC
+        GROUP BY year, month
+        ORDER BY year, month ASC
     """, (int(store_id),))
 
     if not rows:
         return None
 
     df = pd.DataFrame([{
-        "date": r[0][5:7] + "/" + r[0][:4],     # Conversion to MM/YYYY format
-        "number_sales": int(r[1]),
-        "amount_sales": float(r[2])
+        "date": r[0] + "/" + r[1],
+        "number_sales": int(r[2]),
+        "amount_sales": float(r[3])
     } for r in rows])
 
 
