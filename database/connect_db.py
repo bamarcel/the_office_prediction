@@ -2,7 +2,7 @@ import sqlite3
 import datetime
 from pathlib import Path
 
-DATABASE_PATH = Path(__file__).parent.parent / "app_database.db"
+DATABASE_PATH = Path(__file__).parent / "app_database.db"
 
 def connect_db():
     try:
