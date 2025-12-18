@@ -1,0 +1,19 @@
+# Tous les fichiers non-désirés pendant les commits Git
+
+# Environnement virtuel
+venv/
+.env/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Streamlit (pas sur d'en avoir besoin pour le moment mais au cas où)
+.streamlit/secrets.toml
+
+# OS / IDE 
+.DS_Store
+.vscode/
+.idea/
