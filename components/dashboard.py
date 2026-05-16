@@ -1,86 +1,87 @@
-import streamlit as st
 import datetime
-import utils.utils as u
+import streamlit as st
 
-def render(data):
+from components.charts import create_sales_line_chart
 
-    # On récupère toutes les données reçues pour le dashboard
-    current_month = data["current_month"]                             # Défini le mois courant
-    current_year = data["current_year"]                               # Défini l'année courante              
-    last_month = data["last_month"]                                   # Défini le mois précédent 
-    last_month_year = data["last_month_year"]                         # Défini l'année du mois précédent
-    last_year = data["last_year"]                                     # Défini l'année précédente       
 
-    (
-        current_month_sales,                                          # Nombre de ventes du mois courant
-        month_sales_change,                                           # Variation des ventes par rapport au mois précédent
-        current_month_amount,                                         # Montant total des ventes du mois courant
-        month_amount_change,                                          # Variation du montant des ventes par rapport au mois précédent
-        last_year_month_amount,                                       # Montant total des ventes du même mois l'année précédente
-        year_amount_change                                            # Variation du montant des ventes par rapport au même mois l'année précédente
-    ) = data["kpis"]
+def _month_label(month: int, year: int) -> str:
+    return f"{datetime.date(1900, month, 1).strftime('%B')} {year}"
 
-    sales_data = data["sales_data"]                                   # Données de ventes pour le graphique
-    products_sold = data["products_sold"]                             # Produits vendus ce mois-ci    
-    current_month_average_basket = data["current_avg_basket"]         # Valeur moyenne du panier ce mois-ci
-    last_month_average_basket = data["last_avg_basket"]               # Valeur moyenne du panier le mois précédent
 
-    # Gestion des KPIs principaux
-    if current_month_sales is not None:
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric(
-                label=f"Number of Sales - {datetime.date(1900, current_month, 1).strftime('%B')} {current_year}",
-                value=f"{current_month_sales}",
-                delta=f"{month_sales_change:.2f} % vs {datetime.date(1900, last_month, 1).strftime('%B')} {last_month_year}",
-                border=True
-            )
+def render(data: dict):
+    current_month    = data["current_month"]
+    current_year     = data["current_year"]
+    last_month       = data["last_month"]
+    last_month_year  = data["last_month_year"]
+    last_year        = data["last_year"]
+    kpis             = data["kpis"]
+    sales_data       = data["sales_data"]
+    products_sold    = data["products_sold"]
+    current_avg      = data["current_avg_basket"]
+    last_avg         = data["last_avg_basket"]
 
-        with col2:
-            st.metric(
-                label=f"Total Amount Sold - {datetime.date(1900, current_month, 1).strftime('%B')} {current_year}",
-                value=f"${current_month_amount:,.2f}",
-                delta=f"{month_amount_change:.2f} % vs {datetime.date(1900, last_month, 1).strftime('%B')} {last_month_year}",
-                border=True
-            )
+    current_label   = _month_label(current_month, current_year)
+    last_label      = _month_label(last_month, last_month_year)
+    last_year_label = _month_label(current_month, last_year)
 
-        with col3:
-            st.metric(
-                label=f"Total Amount Sold - {datetime.date(1900, current_month, 1).strftime('%B')} {last_year}",
-                value=f"${last_year_month_amount:,.2f}",
-                delta=f"{year_amount_change:.2f} % vs {datetime.date(1900, current_month, 1).strftime('%B')} {current_year}",
-                border=True
-            )
-    else:
-        st.info("No sales data available to display KPIs.")
+    # ── KPIs principaux ──────────────────────────────────────────────────────
+    col1, col2, col3 = st.columns(3)
 
-    # Gestion du graphique des ventes et montants sur les mois
+    with col1:
+        st.metric(
+            label=f"Number of Sales — {current_label}",
+            value=f"{kpis['current_sales']}",
+            delta=f"{kpis['sales_change']:.2f} % vs {last_label}",
+            border=True,
+        )
+
+    with col2:
+        st.metric(
+            label=f"Total Amount — {current_label}",
+            value=f"${kpis['current_amount']:,.2f}",
+            delta=f"{kpis['amount_change']:.2f} % vs {last_label}",
+            border=True,
+        )
+
+    with col3:
+        # CORRECTION : value = montant N-1, delta = évolution N vs N-1
+        # (dans l'ancienne version le delta était inversé)
+        st.metric(
+            label=f"Total Amount — {last_year_label} (N-1)",
+            value=f"${kpis['last_year_amount']:,.2f}",
+            delta=f"{kpis['year_amount_change']:.2f} % vs {last_year_label}",
+            border=True,
+        )
+
+    # ── Graphique des ventes dans le temps ───────────────────────────────────
     if sales_data is not None and not sales_data.empty:
         st.subheader("Sales and Amount Over the Months")
-        line_chart = u.createLineChart(sales_data)
-        st.plotly_chart(line_chart, width='stretch')
+        st.plotly_chart(create_sales_line_chart(sales_data), use_container_width=True)
     else:
         st.info("No sales data available to display the chart.")
 
-    # Gestin des KPIs secondaires
+    # ── KPIs secondaires ─────────────────────────────────────────────────────
     col1, col2 = st.columns(2)
 
     with col1:
-        if products_sold is not None:
+        if products_sold is not None and not products_sold.empty:
             st.subheader("Top Products Sold This Month")
-            st.bar_chart(products_sold.set_index('product_name'), horizontal=True)
+            st.bar_chart(products_sold.set_index("product_name"), horizontal=True)
         else:
             st.info("No product sales data available for this month.")
 
     with col2:
-        if current_month_average_basket is not None:
-            basket_change = ((current_month_average_basket - last_month_average_basket) / last_month_average_basket * 100) if last_month_average_basket != 0 else 0
-            st.subheader("Average Basket Value This Month")
+        if current_avg is not None:
+            basket_change = (
+                ((current_avg - last_avg) / last_avg * 100)
+                if last_avg else 0.0
+            )
+            st.subheader("Average Basket Value")
             st.metric(
-                label=f"Average Basket Value - {datetime.date(1900, current_month, 1).strftime('%B')} {current_year}",
-                value=f"${current_month_average_basket:,.2f}",
-                delta=f"{basket_change:.2f} % vs {datetime.date(1900, last_month, 1).strftime('%B')} {last_month_year}",
-                border=True
+                label=f"Average Basket — {current_label}",
+                value=f"${current_avg:,.2f}",
+                delta=f"{basket_change:.2f} % vs {last_label}",
+                border=True,
             )
         else:
             st.info("No average basket value data available for this month.")

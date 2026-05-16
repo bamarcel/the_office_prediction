@@ -2,8 +2,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-# --- Données initiales (petites tables) ---
-
 # Stores
 stores_data = {
     'store_id': [1, 2, 3],
@@ -41,16 +39,39 @@ new_customers_data = {
 }
 customers_df = pd.DataFrame(new_customers_data)
 
-# 2. Orders (5000 commandes)
+# 2. Orders (10000 commandes)
 num_orders = 10000
 start_date = datetime(2023, 1, 1)
-end_date = datetime(2025, 12, 31)
+end_date = datetime(2026, 12, 31)
 
-def random_dates(start, end, n):
-    delta = end - start
-    int_delta = (delta.days * 24 * 60 * 60) + delta.seconds
-    random_seconds = np.random.randint(int_delta, size=n)
-    return [start + timedelta(seconds=int(sec)) for sec in random_seconds]
+# Fonction pour générer des dates aléatoires avec saisonnalité
+#### Plus de commandes en janvier, septembre et décembre pour être plus proche de la logique métier
+def random_dates_with_seasonality(start, end, n):
+    all_dates = pd.date_range(start=start, end=end, freq='D')
+
+    # Poids saisonniers par mois (hypothèse métier)
+    month_weights = {
+        1: 1.4,   # Janvier (nouveaux budgets)
+        2: 1.0,
+        3: 1.0,
+        4: 1.0,
+        5: 1.0,
+        6: 0.9,
+        7: 0.6,   # Été (creux)
+        8: 0.6,   # Été (creux)
+        9: 1.4,   # Rentrée
+        10: 1.1,
+        11: 1.0,
+        12: 1.4   # Fin d’année
+    }
+
+    # Appliquer les poids aux dates
+    weights = np.array([month_weights[d.month] for d in all_dates])
+    weights = weights / weights.sum()
+
+    sampled_dates = np.random.choice(all_dates, size=n, p=weights)
+    return pd.to_datetime(sampled_dates)
+
 
 # Définition des probabilités d'inclinaison pour les vendeurs (sellers)
 # Par exemple, Jim et Dwight sont plus performants que Meredith.
@@ -61,7 +82,7 @@ new_orders_data = {
     'order_id': range(1, num_orders + 1),
     'customer_id': np.random.randint(1, num_customers + 1, num_orders),
     'seller_id': np.random.choice(seller_ids, num_orders, p=seller_probs),
-    'order_date': [d.strftime('%Y-%m-%d') for d in random_dates(start_date, end_date, num_orders)]
+    'order_date': [d.strftime('%Y-%m-%d') for d in random_dates_with_seasonality(start_date, end_date, num_orders)]
 }
 orders_df = pd.DataFrame(new_orders_data)
 orders_df = orders_df.sort_values(by='order_date').reset_index(drop=True)
@@ -103,7 +124,7 @@ output_files = {
 }
 
 for filename, df in output_files.items():
-    df.to_csv(filename, index=False)
+    df.to_csv("data/" + filename, index=False)
     print(f"Fichier généré : {filename} avec {len(df)} lignes.")
 
 # Afficher les premières lignes et les tailles pour vérification
